@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f3f4ef">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Masas">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}</style>
+<title>Calculadora de masas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Figtree:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: herramienta de dos columnas (datos | balanza), una sola columna en el celu; resultados con números tipo balanza */
+:root{
+  --bg:#f3f4ef; --surface:#ffffff; --sunk:#e9ebe3; --line:#d6d9cd;
+  --fg:#1c211d; --muted:#5f665d;
+  --accent:#4a6a22; --accent-fg:#ffffff; --accent-soft:#e3ebd3;
+  --crust:#a8610f; --warn-bg:#fbeed9; --warn-fg:#7a4300;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-num:"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r:10px;
+}
+:root{color-scheme:light}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 var(--f-body)}
+.wrap{max-width:1080px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px))}
+header.top{display:flex;flex-wrap:nowrap;align-items:flex-start;justify-content:space-between;gap:8px 16px;margin-bottom:16px}
+h1{font:700 1.7rem/1.1 var(--f-display);margin:0;letter-spacing:-.01em;text-wrap:balance}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{flex:none;border-radius:22%;box-shadow:0 1px 2px rgba(0,0,0,.08),0 3px 10px rgba(40,50,30,.12)}
+.ttl{display:flex;flex-direction:column;gap:6px;min-width:0}
+.newbtn{flex:none;background:var(--accent-soft);border-color:var(--accent-soft);color:var(--fg);font-weight:600}
+.recipebar .toast:empty{display:none}
+.sync{font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:6px}
+.sync i{width:8px;height:8px;border-radius:50%;background:var(--muted);display:inline-block}
+.sync.ok i{background:var(--accent)} .sync.local i{background:var(--crust)}
+
+.recipebar{display:grid;grid-template-columns:1fr;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;margin-bottom:16px}
+.recipebar .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.recipebar select{flex:1 1 220px;min-width:0}
+.recipebar input{flex:1 1 200px;min-width:0}
+
+.grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,400px);gap:20px;align-items:start}
+@media (max-width:820px){.grid{grid-template-columns:minmax(0,1fr)}}
+.out{position:sticky;top:calc(env(safe-area-inset-top, 0px) + 12px)}
+@media (max-width:820px){.out{position:static}}
+
+section.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 14px 16px;margin-bottom:14px}
+section.card h2{font:600 .78rem/1 var(--f-body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px}
+.fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px 12px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:.82rem;color:var(--muted);min-width:0}
+label.f span.u{font-family:var(--f-num);font-size:.75rem}
+.inp{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:8px;background:var(--bg);overflow:hidden}
+.inp:focus-within{outline:2px solid var(--accent);outline-offset:-1px}
+.inp input{border:0;background:transparent;width:100%;min-width:0;padding:9px 10px;font:500 1rem var(--f-num);color:var(--fg);outline:none}
+.inp em{font-style:normal;font:400 .8rem var(--f-num);color:var(--muted);padding:0 10px;display:flex;align-items:center;background:var(--sunk)}
+input[type=text],input[type=time],select{border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);padding:9px 10px;font:inherit;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input[type=number]{-moz-appearance:textfield}
+input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+
+.seg{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.seg button{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:999px;padding:7px 12px;font:500 .85rem var(--f-body);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn{border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:8px 12px;font:500 .88rem var(--f-body);cursor:pointer;white-space:nowrap}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.danger{color:var(--warn-fg)}
+.btn.danger.armed{background:var(--warn-bg);border-color:var(--warn-fg)}
+.btn.small{padding:5px 9px;font-size:.8rem}
+.btn:disabled{opacity:.45;cursor:default}
+.linkbtn{background:none;border:0;color:var(--accent);font:500 .85rem var(--f-body);cursor:pointer;padding:4px 0}
+
+.list{display:flex;flex-direction:column;gap:8px}
+.lrow{display:grid;grid-template-columns:minmax(0,1fr) 92px 92px 34px;gap:8px;align-items:center}
+.lrow.flour{grid-template-columns:minmax(0,1fr) 100px 34px}
+.lrow input[type=text],.lrow select{width:100%}
+.x{border:0;background:var(--sunk);color:var(--muted);border-radius:8px;height:38px;cursor:pointer;font-size:1.1rem}
+.lhead{font-size:.75rem;color:var(--muted)}
+@media (max-width:420px){.lrow{grid-template-columns:minmax(0,1fr) 74px 74px 30px}}
+.check{display:flex;gap:8px;align-items:center;font-size:.9rem;margin:2px 0 10px;cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--accent)}
+.hint{font-size:.82rem;color:var(--muted);margin:10px 0 0}
+.sub{border-top:1px dashed var(--line);margin-top:14px;padding-top:12px}
+.sub h3{font:600 .85rem var(--f-body);margin:0 0 10px}
+details>summary{cursor:pointer;font:600 .78rem/1 var(--f-body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"+ ";font-family:var(--f-num)}
+details[open]>summary::before{content:"− "}
+details[open]>summary{margin-bottom:12px}
+
+/* Balanza */
+.scale{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.scale .hd{padding:14px 14px 10px;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;border-bottom:1px solid var(--line)}
+.scale .hd .big{font:600 2rem/1 var(--f-num);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.scale .hd .big small{font-size:1rem;color:var(--muted);margin-left:2px}
+.scale .hd .lbl{font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.scale .hd .meta{text-align:right;font:400 .8rem/1.4 var(--f-num);color:var(--muted)}
+.blk{padding:10px 14px 4px}
+.blk h4{font:600 .78rem var(--f-body);text-transform:uppercase;letter-spacing:.08em;color:var(--crust);margin:6px 0 6px}
+table.ing{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+table.ing td{padding:7px 0;border-bottom:1px solid var(--line);vertical-align:baseline}
+table.ing tr:last-child td{border-bottom:0}
+table.ing td.n{min-width:0;padding-right:8px}
+table.ing td.g{text-align:right;font:600 1.12rem var(--f-num);white-space:nowrap}
+table.ing td.g small{font-weight:400;font-size:.78rem;color:var(--muted);margin-left:2px}
+table.ing td.p{text-align:right;font:400 .8rem var(--f-num);color:var(--muted);width:64px;white-space:nowrap}
+table.ing tr.tot td{border-top:2px solid var(--fg);font-weight:600}
+.note{font-size:.8rem;color:var(--muted);padding:0 14px 10px}
+.warn{background:var(--warn-bg);color:var(--warn-fg);font-size:.85rem;padding:10px 14px;border-top:1px solid var(--line)}
+.plan{border-top:1px solid var(--line);padding:12px 14px}
+.plan .ph{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}
+.plan .ph b{font:600 .78rem var(--f-body);text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.bar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--sunk);margin-bottom:10px}
+.bar span{display:block;height:100%}
+.steps{list-style:none;margin:0;padding:0;font-size:.85rem;display:flex;flex-direction:column;gap:5px}
+.steps li{display:grid;grid-template-columns:14px 1fr auto;gap:8px;align-items:baseline}
+.steps li i{width:10px;height:10px;border-radius:2px;display:inline-block}
+.steps li .t{font-family:var(--f-num);font-size:.78rem;color:var(--muted);white-space:nowrap}
+.steps li.end{font-weight:600}
+.actions{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line);flex-wrap:wrap}
+.toast{font-size:.8rem;color:var(--accent);align-self:center}
+@media (prefers-reduced-motion:no-preference){.scale .hd .big{transition:color .2s}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="ttl"><div class="brand"><svg class="logo" viewBox="0 0 100 100" width="44" height="44" aria-hidden="true"><rect width="100" height="100" rx="22" fill="#e3ebd3"/><rect x="14" y="58" width="72" height="27" rx="8" fill="#4a6a22"/><rect x="22" y="64.5" width="36" height="13.5" rx="2.5" fill="#1b2a1e"/><text x="40" y="74.8" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-weight="600" font-size="8.5" fill="#b8ff9f">250g</text><circle cx="70" cy="71.2" r="4.5" fill="#a8610f"/><rect x="18" y="52" width="64" height="6" rx="3" fill="#38521a"/><ellipse cx="50" cy="50.9" rx="19" ry="3.9" fill="rgba(40,50,20,.18)"/><ellipse cx="50" cy="39" rx="20" ry="14" fill="#c99a52"/><ellipse cx="48.8" cy="37.6" rx="18.4" ry="12" fill="#e6c07f"/><ellipse cx="43" cy="33.1" rx="6.8" ry="2.8" fill="#f7e6c2"/></svg><h1>Calculadora de masas</h1></div><div class="sync" id="sync"><i></i><span>Cargando tus recetas…</span></div></div>
+    <button class="btn small newbtn" id="nueva" aria-expanded="false">+ Nueva receta</button>
+  </header>
+
+  <div class="recipebar">
+    <div class="row">
+      <select id="receta" aria-label="Receta"></select>
+    </div>
+    <div class="row" id="nuevaPanel" hidden>
+      <input type="text" id="nombre" aria-label="Nombre de la nueva receta" placeholder="Nombre de la nueva receta">
+      <button class="btn primary" id="guardar">Crear</button>
+      <button class="btn" id="cancelar">Cancelar</button>
+      <p class="hint" style="margin:0;flex-basis:100%">Arranca con lo que tenés cargado ahora; después la ajustás y se guarda sola.</p>
+    </div>
+    <div class="row" id="mineRow" hidden>
+      <span class="hint" style="margin:0;flex:1">Tu receta: los cambios se guardan solos.</span>
+      <button class="btn small danger" id="eliminar">Eliminar</button>
+    </div>
+    <span class="toast" id="toast" aria-live="polite"></span>
+  </div>
+
+  <div class="grid">
+    <div id="form"></div>
+    <aside class="out" id="out" aria-live="polite"></aside>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- Datos base ---------- */
+const PF_DEF = {pct:50, hidr:45, lev:1, horas:18, temp:18};
+const PRESETS = [
+ {id:"b-frio-bloque", nombre:"Napolitana · en bloque al frío", modo:"piezas", piezas:4, peso:250, harinaTotal:1000, desperdicio:1,
+  hidratacion:65, sal:2.8, aceite:0, azucar:0, harinas:[{nombre:"Harina de fuerza (súper)", pct:100}],
+  leudado:"seca_inst", prefermento:"ninguno", levAuto:true, levManual:0.3, pf:{...PF_DEF}, levain:{pct:20, hidr:100},
+  etapas:[{nombre:"En bloque, heladera", horas:24, temp:6},{nombre:"Bollos fuera de la heladera", horas:1, temp:25}]},
+ {id:"b-frio-bollos", nombre:"Napolitana · bollos al frío", modo:"piezas", piezas:4, peso:250, harinaTotal:1000, desperdicio:1,
+  hidratacion:65, sal:2.8, aceite:0, azucar:0, harinas:[{nombre:"Harina de fuerza (súper)", pct:100}],
+  leudado:"seca_inst", prefermento:"ninguno", levAuto:true, levManual:0.3, pf:{...PF_DEF}, levain:{pct:20, hidr:100},
+  etapas:[{nombre:"En bollos, heladera", horas:24, temp:6},{nombre:"Fuera de la heladera", horas:1, temp:25}]},
+ {id:"b-integral-bloque", nombre:"Napolitana integral 50 % · en bloque al frío", modo:"piezas", piezas:4, peso:250, harinaTotal:1000, desperdicio:1,
+  hidratacion:72, sal:2.8, aceite:0, azucar:0, harinas:[{nombre:"Harina de fuerza (súper)", pct:50},{nombre:"Harina integral de trigo", pct:50}],
+  leudado:"seca_inst", prefermento:"ninguno", levAuto:true, levManual:0.3, pf:{...PF_DEF}, levain:{pct:20, hidr:100},
+  etapas:[{nombre:"En bloque, heladera", horas:24, temp:6},{nombre:"Bollos fuera de la heladera", horas:1, temp:25}]},
+ {id:"b-integral-100", nombre:"Pizza 100 % integral · en bloque al frío", modo:"piezas", piezas:4, peso:250, harinaTotal:1000, desperdicio:1,
+  hidratacion:78, sal:2.8, aceite:0, azucar:0, harinas:[{nombre:"Harina integral de trigo", pct:100}],
+  leudado:"seca_inst", prefermento:"ninguno", levAuto:true, levManual:0.3, pf:{...PF_DEF}, levain:{pct:20, hidr:100},
+  etapas:[{nombre:"En bloque, heladera", horas:24, temp:6},{nombre:"Bollos fuera de la heladera", horas:1, temp:25}]},
+ {id:"b-napo8", nombre:"Napolitana · 8 h a temperatura ambiente", modo:"piezas", piezas:4, peso:250, harinaTotal:1000, desperdicio:1,
+  hidratacion:63, sal:2.8, aceite:0, azucar:0, harinas:[{nombre:"Harina de fuerza (súper)", pct:100}],
+  leudado:"seca_inst", prefermento:"ninguno", levAuto:true, levManual:0.3, pf:{...PF_DEF}, levain:{pct:20, hidr:100},
+  etapas:[{nombre:"En bloque", horas:2, temp:22},{nombre:"En bollos", horas:6, temp:22}]},
+ {id:"b-fugazzeta", nombre:"Fugazzeta argentina (molde de 30–32 cm)", modo:"piezas", piezas:1, peso:500, harinaTotal:300, desperdicio:2,
+  hidratacion:62, sal:2.2, aceite:4, azucar:0, harinas:[{nombre:"Harina de fuerza (súper)", pct:100}],
+  leudado:"seca_inst", prefermento:"ninguno", levAuto:true, levManual:0.3, pf:{...PF_DEF}, levain:{pct:20, hidr:100},
+  etapas:[{nombre:"En bloque", horas:1.5, temp:25},{nombre:"Estirada en el molde aceitado", horas:1, temp:25}]},
+ {id:"b-biga", nombre:"Napolitana con biga", modo:"piezas", piezas:4, peso:250, harinaTotal:1000, desperdicio:1,
+  hidratacion:68, sal:2.8, aceite:0, azucar:0, harinas:[{nombre:"Harina de fuerza (súper)", pct:100}],
+  leudado:"seca_inst", prefermento:"biga", levAuto:false, levManual:0, pf:{pct:50, hidr:45, lev:1, horas:18, temp:18}, levain:{pct:20, hidr:100},
+  etapas:[{nombre:"En bloque", horas:1, temp:22},{nombre:"En bollos", horas:5, temp:22}]},
+ {id:"b-poolish", nombre:"Napolitana con poolish", modo:"piezas", piezas:4, peso:250, harinaTotal:1000, desperdicio:1,
+  hidratacion:68, sal:2.8, aceite:0, azucar:0, harinas:[{nombre:"Harina de fuerza (súper)", pct:100}],
+  leudado:"seca_inst", prefermento:"poolish", levAuto:false, levManual:0.02, pf:{pct:30, hidr:100, lev:0.2, horas:16, temp:20}, levain:{pct:20, hidr:100},
+  etapas:[{nombre:"En bloque", horas:1, temp:22},{nombre:"En bollos", horas:5, temp:22}]},
+ {id:"b-hogaza", nombre:"Hogaza de masa madre", modo:"piezas", piezas:1, peso:900, harinaTotal:500, desperdicio:0,
+  hidratacion:75, sal:2, aceite:0, azucar:0, harinas:[{nombre:"Harina de fuerza (súper)", pct:80},{nombre:"Harina integral de trigo", pct:20}],
+  leudado:"masamadre", prefermento:"ninguno", levAuto:true, levManual:0.3, pf:{...PF_DEF}, levain:{pct:20, hidr:100},
+  etapas:[{nombre:"Autólisis", horas:1, temp:24},{nombre:"Bloque con pliegues", horas:5, temp:24},{nombre:"Formado y heladera", horas:14, temp:4}]},
+ {id:"b-focaccia", nombre:"Focaccia en bandeja 30×40", modo:"piezas", piezas:1, peso:1100, harinaTotal:600, desperdicio:0,
+  hidratacion:80, sal:2.5, aceite:3, azucar:0, harinas:[{nombre:"Harina de fuerza (súper)", pct:100}],
+  leudado:"seca_inst", prefermento:"ninguno", levAuto:true, levManual:0.3, pf:{...PF_DEF}, levain:{pct:20, hidr:100},
+  etapas:[{nombre:"En bloque, heladera", horas:18, temp:4},{nombre:"En la bandeja", horas:3, temp:24}]}
+];
+const HARINAS = ["Harina de fuerza (súper)","Caputo Pizzeria","Caputo Nuvola","Harina integral de trigo"];
+const isInt = n => /integral/i.test(n||"");
+function integralPct(){ return state.harinas.reduce((a,h)=>a+(isInt(h.nombre)?num(h.pct):0),0); }
+function setIntegral(x){
+  const prev = integralPct();
+  const main = (state.harinas.find(h=>!isInt(h.nombre))||{}).nombre || "Harina de fuerza (súper)";
+  const integ = (state.harinas.find(h=>isInt(h.nombre))||{}).nombre || "Harina integral de trigo";
+  const hs = [];
+  if (x<100) hs.push({nombre:main, pct:100-x});
+  if (x>0) hs.push({nombre:integ, pct:x});
+  state.harinas = hs;
+  state.hidratacion = Math.round((num(state.hidratacion) + 0.15*(x-prev))*2)/2;
+}
+const LEV = {
+  fresca:{n:"Levadura fresca", c:1},
+  seca_inst:{n:"Levadura seca instantánea (IDY)", c:1/3},
+  seca_activa:{n:"Levadura seca activa", c:1/2},
+  masamadre:{n:"Masa madre", c:0}
+};
+const PF_NAME = {biga:"Biga", poolish:"Poolish"};
+const PF_PRESET = {biga:{pct:50, hidr:45, lev:1, horas:18, temp:18}, poolish:{pct:30, hidr:100, lev:0.2, horas:16, temp:20}};
+const STAGE_COLORS = ["var(--accent)","var(--crust)","#6f8fa8","#9a7bb0","#5e9e8c","#b0846f"];
+
+/* ---------- Utilidades ---------- */
+const $ = s => document.querySelector(s);
+const clone = o => JSON.parse(JSON.stringify(o));
+const num = v => { const n = parseFloat(String(v).replace(",", ".")); return isFinite(n) ? n : 0; };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch(e){ return null; } };
+const lsSet = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
+function fmtG(g){
+  if (!isFinite(g)) return "–";
+  const a = Math.abs(g);
+  if (a < 1) return g.toFixed(2).replace(".", ",");
+  if (a < 20) return g.toFixed(1).replace(".", ",");
+  return Math.round(g).toLocaleString("es-ES");
+}
+function fmtN(n){ return (Math.round(num(n)*10)/10).toString().replace(".", ","); }
+function fmtP(p){
+  const a = Math.abs(p);
+  const d = a < 1 ? 2 : (a < 10 ? 1 : 1);
+  return (Math.round(p*Math.pow(10,d))/Math.pow(10,d)).toString().replace(".", ",") + " %";
+}
+function setPath(o, path, v){
+  const ks = path.split("."); let cur = o;
+  for (let i=0;i<ks.length-1;i++) cur = cur[ks[i]];
+  cur[ks[ks.length-1]] = v;
+}
+function getPath(o, path){ return path.split(".").reduce((a,k)=>a==null?a:a[k], o); }
+
+/* ---------- Modelo de levadura ----------
+   Tiempo efectivo = Σ horas × 2^((T − 23)/7): la actividad se duplica cada ~7 °C.
+   % levadura fresca ≈ 2,8 × t_ef^−1,09 (calibrado contra recetas habituales:
+   ~1,3 % en 2 h, ~0,3 % en 8 h y ~0,1 % en 24 h a 22–23 °C). */
+function rate(T){ T = Math.max(1, Math.min(35, T)); return Math.pow(2, (T-23)/7); }
+function effHours(etapas){ return etapas.reduce((a,e)=>a + Math.max(0,num(e.horas))*rate(num(e.temp)), 0); }
+function yeastFreshPct(etapas){ const t = Math.max(0.5, effHours(etapas)); return 2.8*Math.pow(t, -1.09); }
+
+/* ---------- Estado ---------- */
+let state = clone(PRESETS[0]);
+let current = {kind:"base", id:PRESETS[0].id};
+let mine = []; // {id,nombre,data,updatedAt,deleted?}
+let startTime = null;
+
+const last = lsGet("masas.ultimo");
+if (last && last.state) { state = Object.assign(clone(PRESETS[0]), last.state); current = last.current || current; }
+mine = lsGet("masas.recetas") || [];
+if (!lsGet("masas.v8")) { lsSet("masas.v8", true); if (current.kind==="base") { state = clone(PRESETS[0]); current = {kind:"base", id:PRESETS[0].id}; } }
+
+/* ---------- Cálculo ---------- */
+function calc(s){
+  const f = x => num(x)/100;
+  const H=f(s.hidratacion), S=f(s.sal), O=f(s.aceite), Z=f(s.azucar);
+  const type = s.leudado, conv = LEV[type].c;
+  const warns = [];
+  // harinas normalizadas
+  let fl = s.harinas.filter(h=>num(h.pct)>0);
+  let sum = fl.reduce((a,h)=>a+num(h.pct),0);
+  if (!fl.length) { fl=[{nombre:"Harina", pct:100}]; sum=100; }
+  if (Math.abs(sum-100) > 0.01) warns.push(`Las harinas suman ${fmtP(sum)}. Las repartí en proporción para llegar al 100 %.`);
+  fl = fl.map(h=>({nombre:h.nombre||"Harina", frac:num(h.pct)/sum}));
+
+  const usesPf = type!=="masamadre" && s.prefermento!=="ninguno";
+  let Y=0, pfYeast=0, extra=0, autoFresh=null;
+  if (type!=="masamadre"){
+    if (!usesPf){
+      if (s.levAuto){ autoFresh = yeastFreshPct(s.etapas); Y = autoFresh*conv/100; }
+      else Y = f(s.levManual);
+    } else {
+      pfYeast = f(s.pf.pct)*f(s.pf.lev)*conv;
+      extra = f(s.levManual);
+      Y = pfYeast + extra;
+    }
+  }
+  const totFrac = 1+H+S+O+Z+Y;
+  let F, D;
+  if (s.modo==="piezas"){ D = num(s.piezas)*num(s.peso)*(1+f(s.desperdicio)); F = D/totFrac; }
+  else { F = num(s.harinaTotal); D = F*totFrac; }
+
+  const r = {F, D, H, warns, sections:[], notes:[], autoFresh, type};
+  const row = (n,g,p,cls) => ({n,g,p:p, cls});
+  const pctOf = g => F>0 ? g/F*100 : 0;
+  const yeastName = LEV[type].n;
+
+  if (type==="masamadre"){
+    const L=f(s.levain.pct), hl=f(s.levain.hidr);
+    const lev = F*L, levF = lev/(1+hl), levW = lev - levF;
+    const restF = F - levF, restW = F*H - levW;
+    const rows = [row(`Masa madre (${fmtP(num(s.levain.hidr))} hidr.)`, lev, pctOf(lev))];
+    fl.forEach(h=>rows.push(row(h.nombre, restF*h.frac, null)));
+    rows.push(row("Agua", restW, null));
+    rows.push(row("Sal", F*S, S*100));
+    if (O>0) rows.push(row("Aceite de oliva", F*O, O*100));
+    if (Z>0) rows.push(row("Azúcar o malta", F*Z, Z*100));
+    rows.push(row("Total", D, null, "tot"));
+    r.sections.push({t:null, rows});
+    r.notes.push(`La masa madre aporta ${fmtG(levF)} g de harina y ${fmtG(levW)} g de agua; ya están descontados. Harina total ${fmtG(F)} g, hidratación total ${fmtP(H*100)}.`);
+    if (restW < 0) warns.push("La masa madre ya trae más agua que la hidratación que pusiste. Subí la hidratación o bajá el % de masa madre.");
+  } else if (usesPf){
+    const p=f(s.pf.pct), hp=f(s.pf.hidr);
+    const pfF=F*p, pfW=pfF*hp, pfY=F*pfYeast, pfTot=pfF+pfW+pfY;
+    const nm = PF_NAME[s.prefermento];
+    const r1 = [];
+    fl.forEach(h=>r1.push(row(fl.length>1?h.nombre:"Harina", pfF*h.frac, null)));
+    r1.push(row("Agua", pfW, null));
+    r1.push(row(yeastName, pfY, null));
+    r1.push(row(`Total ${nm.toLowerCase()}`, pfTot, null, "tot"));
+    r.sections.push({t:`${nm} · ${fmtN(s.pf.horas)} h a ${fmtN(s.pf.temp)} °C`, rows:r1});
+    const r2 = [row(`${nm} (toda)`, pfTot, null)];
+    fl.forEach(h=>r2.push(row(h.nombre, (F-pfF)*h.frac, null)));
+    r2.push(row("Agua", F*H-pfW, null));
+    r2.push(row("Sal", F*S, S*100));
+    if (extra>0) r2.push(row(yeastName, F*extra, extra*100));
+    if (O>0) r2.push(row("Aceite de oliva", F*O, O*100));
+    if (Z>0) r2.push(row("Azúcar o malta", F*Z, Z*100));
+    r2.push(row("Total", D, null, "tot"));
+    r.sections.push({t:"Amasado final", rows:r2});
+    r.notes.push(`Harina total ${fmtG(F)} g · hidratación total ${fmtP(H*100)} · ${yeastName.toLowerCase()} total ${fmtG(F*Y)} g (${fmtP(Y*100)}).`);
+    if (F*H-pfW < 0) warns.push(`La ${nm.toLowerCase()} ya trae más agua que la masa entera. Subí la hidratación o bajá el % de ${nm.toLowerCase()}.`);
+  } else {
+    const rows = [];
+    fl.forEach(h=>rows.push(row(h.nombre, F*h.frac, h.frac*100)));
+    rows.push(row("Agua", F*H, H*100));
+    rows.push(row("Sal", F*S, S*100));
+    rows.push(row(yeastName, F*Y, Y*100));
+    if (O>0) rows.push(row("Aceite de oliva", F*O, O*100));
+    if (Z>0) rows.push(row("Azúcar o malta", F*Z, Z*100));
+    rows.push(row("Total", D, null, "tot"));
+    r.sections.push({t:null, rows});
+    if (autoFresh!==null){
+      if (autoFresh>3) warns.push("Con tan poco tiempo la levadura estimada pasa del 3 % (en fresca). Conviene alargar la fermentación.");
+      if (autoFresh<0.03) warns.push("Fermentación muy larga: la cantidad de levadura es mínima y la estimación es poco precisa. Pesala con balanza de 0,01 g o diluila en el agua.");
+    }
+  }
+  return r;
+}
+
+/* ---------- Formulario ---------- */
+function numField(label, key, unit, opts={}){
+  const v = getPath(state, key);
+  const id = "f-"+key.replace(/\./g,"-");
+  return `<label class="f" for="${id}">${esc(label)}
+    <span class="inp"><input id="${id}" type="number" inputmode="decimal" step="${opts.step||"any"}" min="0" data-k="${key}" value="${esc(v)}">${unit?`<em>${unit}</em>`:""}</span></label>`;
+}
+function seg(key, options){
+  const v = getPath(state, key);
+  return `<div class="seg" role="group">${options.map(([val,txt])=>`<button type="button" data-seg="${key}" data-v="${val}" aria-pressed="${v===val}">${esc(txt)}</button>`).join("")}</div>`;
+}
+function renderForm(){
+  const s = state;
+  const usesPf = s.leudado!=="masamadre" && s.prefermento!=="ninguno";
+  let h = "";
+
+  h += `<section class="card"><h2>Cantidad</h2>
+    ${seg("modo", [["piezas","Por bollos o piezas"],["harina","Por harina"]])}
+    <div class="fields">` +
+    (s.modo==="piezas"
+      ? numField("Bollos / piezas","piezas","",{step:1}) + numField("Peso de cada una","peso","g") + numField("Margen por pérdidas","desperdicio","%")
+      : numField("Harina total","harinaTotal","g")) +
+    `</div></section>`;
+
+  h += `<section class="card"><h2>Fórmula (% sobre la harina)</h2><div class="fields">
+    ${numField("Hidratación","hidratacion","%")}${numField("Sal","sal","%")}${numField("Aceite","aceite","%")}
+    </div>
+    <div class="sub"><h3>Harinas</h3><div class="list">
+    ${s.harinas.map((f,i)=>`<div class="lrow flour">
+        ${(f.custom || !HARINAS.includes(f.nombre)) && f.custom!==false && !HARINAS.includes(f.nombre)
+          ? `<input type="text" id="h-n-${i}" data-k="harinas.${i}.nombre" data-text="1" value="${esc(f.nombre)}" placeholder="Nombre de la harina" aria-label="Harina ${i+1}">`
+          : `<select id="h-s-${i}" data-flour="${i}" aria-label="Harina ${i+1}">${HARINAS.map(n=>`<option ${n===f.nombre?"selected":""}>${esc(n)}</option>`).join("")}<option value="__otra">Otra…</option></select>`}
+        <span class="inp"><input id="h-p-${i}" type="number" inputmode="decimal" step="any" data-k="harinas.${i}.pct" value="${esc(f.pct)}" aria-label="Porcentaje"><em>%</em></span>
+        <button type="button" class="x" data-del-harina="${i}" aria-label="Quitar harina" ${s.harinas.length<2?"disabled":""}>×</button>
+      </div>`).join("")}
+    </div><button type="button" class="linkbtn" id="addHarina">+ Agregar harina</button>
+    <div class="sub"><h3>Integral</h3><div class="seg" role="group">${[0,30,50,70,100].map(v=>`<button type="button" data-int="${v}" aria-pressed="${Math.round(integralPct())===v}">${v===0?"Sin integral":v+" %"}</button>`).join("")}</div>
+    ${integralPct()>0?`<p class="hint">Con integral sube la hidratación: unos 0,15 puntos por cada 1 % de integral (al tocar estos botones ya la ajusto). La integral fermenta algo más rápido y la masa queda más corta, así que conviene estirarla con cuidado.</p>`:`<p class="hint">Elegí cuánta integral querés y ajusto harinas e hidratación.</p>`}</div></div>
+  </section>`;
+
+  h += `<section class="card"><h2>Leudado</h2>
+    ${seg("leudado", [["fresca","Fresca"],["seca_inst","Seca instantánea (IDY)"],["seca_activa","Seca activa"],["masamadre","Masa madre"]])}`;
+  if (s.leudado==="masamadre"){
+    h += `<div class="fields">${numField("Masa madre","levain.pct","%")}${numField("Hidratación de la masa madre","levain.hidr","%")}</div>
+      <p class="hint">El % de masa madre es su peso sobre la harina total. Con 20 % y la masa madre en su punto, a 24 °C el bloque suele llevar entre 4 y 6 h.</p>`;
+  } else {
+    h += `<div class="sub" style="border:0;margin-top:0;padding-top:0"><h3>Prefermento</h3>${seg("prefermento", [["ninguno","Directo"],["biga","Biga"],["poolish","Poolish"]])}</div>`;
+    if (usesPf){
+      h += `<div class="fields">${numField(`Harina en la ${PF_NAME[s.prefermento].toLowerCase()}`,"pf.pct","%")}${numField("Su hidratación","pf.hidr","%")}
+        ${numField("Su levadura (en fresca)","pf.lev","%")}${numField("Horas","pf.horas","h")}${numField("Temperatura","pf.temp","°C")}
+        ${numField(`${LEV[s.leudado].n} extra al amasar`,"levManual","%")}</div>
+        <p class="hint">Los % de la ${PF_NAME[s.prefermento].toLowerCase()} son sobre su propia harina; la levadura se expresa en fresca y se convierte al tipo elegido. La levadura extra va sobre la harina total.</p>`;
+    } else {
+      h += `<label class="check"><input type="checkbox" id="levAuto" ${s.levAuto?"checked":""}> Calcular la levadura según tiempo y temperatura</label>`;
+      if (!s.levAuto) h += `<div class="fields">${numField(LEV[s.leudado].n,"levManual","%")}</div>`;
+      else {
+        const fr = yeastFreshPct(s.etapas), c = LEV[s.leudado].c;
+        h += `<p class="hint">Estimado: <b>${fmtP(fr*c)}</b> de ${LEV[s.leudado].n.toLowerCase()}${s.leudado!=="fresca"?` (${fmtP(fr)} en fresca)`:""}. Es un punto de partida: la harina, la sal y tu heladera cambian el resultado.</p>`;
+      }
+    }
+  }
+  h += `</section>`;
+
+  h += `<section class="card"><h2>Tiempo y temperatura${usesPf?" (después del amasado final)":""}</h2>
+    <div class="list"><div class="lrow lhead"><span>Etapa</span><span>Horas</span><span>°C</span><span></span></div>
+    ${s.etapas.map((e,i)=>`<div class="lrow">
+        <input type="text" id="e-n-${i}" data-k="etapas.${i}.nombre" data-text="1" value="${esc(e.nombre)}" aria-label="Etapa ${i+1}">
+        <span class="inp"><input id="e-h-${i}" type="number" inputmode="decimal" step="any" data-k="etapas.${i}.horas" value="${esc(e.horas)}" aria-label="Horas"></span>
+        <span class="inp"><input id="e-t-${i}" type="number" inputmode="decimal" step="any" data-k="etapas.${i}.temp" value="${esc(e.temp)}" aria-label="Temperatura"></span>
+        <button type="button" class="x" data-del-etapa="${i}" aria-label="Quitar etapa" ${s.etapas.length<2?"disabled":""}>×</button>
+      </div>`).join("")}
+    </div>
+    <button type="button" class="linkbtn" id="addEtapa">+ Agregar etapa</button>
+    ${coldChips()}
+    <p class="hint">Referencias: ambiente 20–24 °C, heladera 4 °C, bodega o vinoteca 12–16 °C.</p>
+  </section>`;
+
+  const a = state.agua || (state.agua = {objetivo:24, ambiente:21, harina:21, friccion:3});
+  h += `<section class="card"><details id="dAgua" ${lsGet("masas.aguaOpen")?"open":""}><summary>Temperatura del agua</summary>
+    <div class="fields">${numField("Masa al terminar","agua.objetivo","°C")}${numField("Ambiente","agua.ambiente","°C")}${numField("Harina","agua.harina","°C")}${numField("Fricción del amasado","agua.friccion","°C")}</div>
+    <p class="hint" id="aguaRes"></p>
+    <p class="hint">Fricción: a mano 1–3 °C, amasadora espiral 6–10 °C, Thermomix o batidora de brazo 10–14 °C.</p>
+  </details></section>`;
+
+  $("#form").innerHTML = h;
+  renderAgua();
+}
+function coldIdx(){ return state.etapas.findIndex(e=>num(e.temp)<=8); }
+function coldChips(){
+  const i = coldIdx(); if (i<0) return "";
+  const h = num(state.etapas[i].horas);
+  return `<div class="sub"><h3>Horas de frío</h3><div class="seg" role="group">${[24,36,48,72].map(v=>`<button type="button" data-cold="${v}" aria-pressed="${h===v}">${v} h</button>`).join("")}</div></div>`;
+}
+function renderAgua(){
+  const el = $("#aguaRes"); if (!el) return;
+  const a = state.agua; const pre = state.leudado==="masamadre" || (state.prefermento!=="ninguno");
+  const fac = pre ? 4 : 3;
+  const w = num(a.objetivo)*fac - num(a.ambiente) - num(a.harina) - num(a.friccion) - (pre ? num(a.ambiente) : 0);
+  el.innerHTML = `Usá agua a <b>${Math.round(w)} °C</b>` + (pre ? ` (contando la ${state.leudado==="masamadre"?"masa madre":PF_NAME[state.prefermento].toLowerCase()} a temperatura ambiente).` : ".")
+    + (w < 2 ? " Es muy fría: usá agua de la heladera y algo de hielo, o enfriá la harina." : "");
+}
+
+/* ---------- Resultados ---------- */
+function stagesForPlan(){
+  const s = state, list = [];
+  if (s.leudado!=="masamadre" && s.prefermento!=="ninguno")
+    list.push({nombre:`${PF_NAME[s.prefermento]}`, horas:num(s.pf.horas), temp:num(s.pf.temp)});
+  s.etapas.forEach(e=>list.push({nombre:e.nombre||"Etapa", horas:num(e.horas), temp:num(e.temp)}));
+  return list;
+}
+function fmtWhen(d){
+  const day = d.toLocaleDateString("es-ES",{weekday:"short"}).replace(".","");
+  const t = d.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit"});
+  return `${day} ${t}`;
+}
+let lastResult = null;
+function renderOut(){
+  const r = calc(state); lastResult = r;
+  const s = state;
+  let h = `<div class="scale"><div class="hd"><div><div class="lbl">Masa total</div><div class="big">${fmtG(r.D)}<small>g</small></div></div>
+    <div class="meta">${s.modo==="piezas"?`${num(s.piezas)} × ${fmtG(num(s.peso))} g<br>`:""}harina ${fmtG(r.F)} g<br>hidr. ${fmtP(r.H*100)}</div></div>`;
+  r.sections.forEach(sec=>{
+    h += `<div class="blk">${sec.t?`<h4>${esc(sec.t)}</h4>`:""}<table class="ing"><tbody>`;
+    sec.rows.forEach(rw=>{
+      h += `<tr class="${rw.cls||""}"><td class="n">${esc(rw.n)}</td><td class="g">${fmtG(rw.g)}<small>g</small></td><td class="p">${rw.p!=null?fmtP(rw.p):""}</td></tr>`;
+    });
+    h += `</tbody></table></div>`;
+  });
+  r.notes.forEach(n=>h += `<p class="note">${esc(n)}</p>`);
+  r.warns.forEach(w=>h += `<div class="warn">${esc(w)}</div>`);
+
+  // Plan
+  const st = stagesForPlan(); const total = st.reduce((a,e)=>a+e.horas,0);
+  if (!startTime){ const d=new Date(); d.setMinutes(Math.ceil(d.getMinutes()/5)*5,0,0); startTime = `${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`; }
+  const [hh,mm] = startTime.split(":").map(Number);
+  let t = new Date(); t.setHours(hh||0, mm||0, 0, 0);
+  h += `<div class="plan"><div class="ph"><b>Plan · ${fmtN(total)} h</b><label style="display:flex;gap:6px;align-items:center;font-size:.82rem;color:var(--muted)">Empiezo a las <input type="time" id="inicio" value="${esc(startTime)}"></label></div>`;
+  if (total>0){
+    h += `<div class="bar">${st.map((e,i)=>`<span style="width:${e.horas/total*100}%;background:${STAGE_COLORS[i%STAGE_COLORS.length]}"></span>`).join("")}</div>`;
+  }
+  h += `<ol class="steps">`;
+  st.forEach((e,i)=>{
+    h += `<li><i style="background:${STAGE_COLORS[i%STAGE_COLORS.length]}"></i><span>${esc(e.nombre)} · ${fmtN(e.horas)} h a ${fmtN(e.temp)} °C</span><span class="t">${fmtWhen(t)}</span></li>`;
+    t = new Date(t.getTime() + e.horas*3600e3);
+  });
+  h += `<li class="end"><i></i><span>${/ooni|napolitana/i.test(s.nombre||"")?"Estirar y al Ooni":(s.leudado==="masamadre"||/pan|hogaza|focaccia|fugazz/i.test(s.nombre||"")?"Al horno":"Lista para estirar")}</span><span class="t">${fmtWhen(t)}</span></li></ol></div>`;
+
+  h += `<div class="actions"><button class="btn" id="copiar">Copiar receta</button><span class="toast" id="copyMsg" aria-live="polite"></span></div></div>`;
+  $("#out").innerHTML = h;
+}
+function recipeText(){
+  const r = lastResult || calc(state); const s = state;
+  let t = `${s.nombre}\n`;
+  t += s.modo==="piezas" ? `${num(s.piezas)} × ${fmtG(num(s.peso))} g · masa total ${fmtG(r.D)} g\n` : `Harina ${fmtG(r.F)} g · masa total ${fmtG(r.D)} g\n`;
+  r.sections.forEach(sec=>{
+    t += "\n" + (sec.t ? sec.t+"\n" : "");
+    sec.rows.forEach(rw=>{ if (rw.cls!=="tot") t += `- ${rw.n}: ${fmtG(rw.g)} g${rw.p!=null?` (${fmtP(rw.p)})`:""}\n`; else t += `= ${rw.n}: ${fmtG(rw.g)} g\n`; });
+  });
+  r.notes.forEach(n=>t += `\n${n}\n`);
+  t += "\nPlan:\n"; stagesForPlan().forEach(e=>t += `- ${e.nombre}: ${fmtN(e.horas)} h a ${fmtN(e.temp)} °C\n`);
+  return t;
+}
+
+/* ---------- Recetas ---------- */
+function visibleMine(){ return mine.filter(m=>!m.deleted).sort((a,b)=>a.nombre.localeCompare(b.nombre,"es")); }
+function renderBar(){
+  const sel = $("#receta");
+  sel.innerHTML = "";
+  const g1 = document.createElement("optgroup"); g1.label = "Base";
+  PRESETS.forEach(p=>{ const o=document.createElement("option"); o.value="base:"+p.id; o.textContent=p.nombre; g1.appendChild(o); });
+  sel.appendChild(g1);
+  const vm = visibleMine();
+  const g2 = document.createElement("optgroup"); g2.label = vm.length ? "Mis recetas" : "Mis recetas (todavía ninguna)";
+  vm.forEach(m=>{ const o=document.createElement("option"); o.value="mine:"+m.id; o.textContent=m.nombre; g2.appendChild(o); });
+  sel.appendChild(g2);
+  const val = current.kind+":"+current.id;
+  if ([...sel.options].some(o=>o.value===val)) sel.value = val;
+  else { const o=document.createElement("option"); o.value="none"; o.textContent="Sin guardar"; sel.insertBefore(o, sel.firstChild); sel.value="none"; }
+  $("#mineRow").hidden = current.kind!=="mine";
+  disarm();
+}
+let autoT=null;
+function persistLast(){
+  lsSet("masas.ultimo", {state, current});
+  if (current.kind==="mine"){
+    clearTimeout(autoT);
+    autoT = setTimeout(()=>{
+      const m = mine.find(x=>x.id===current.id); if (!m) return;
+      const d = snapshotData();
+      if (JSON.stringify(d)===JSON.stringify(m.data)) return;
+      m.data = d; m.updatedAt = Date.now(); storeMine();
+    }, 1200);
+  }
+}
+function rerenderAll(){ renderBar(); renderForm(); renderOut(); persistLast(); }
+function toast(msg){ const t=$("#toast"); t.textContent=msg; clearTimeout(toast.t); toast.t=setTimeout(()=>t.textContent="",2500); }
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function snapshotData(){ const d = clone(state); delete d.id; return d; }
+
+function togglePanel(open){
+  $("#nuevaPanel").hidden = !open; $("#nueva").setAttribute("aria-expanded", String(open));
+  if (open){ const i=$("#nombre"); i.value=""; i.focus(); }
+}
+function saveRecipe(){
+  let n = ($("#nombre").value||"").trim() || "Mi receta";
+  if (PRESETS.some(p=>p.nombre===n) || visibleMine().some(m=>m.nombre===n)) n = n + " (2)";
+  state.nombre = n;
+  const id = uid();
+  mine.push({id, nombre:n, data:snapshotData(), updatedAt:Date.now()});
+  current = {kind:"mine", id};
+  togglePanel(false);
+  storeMine(); rerenderAll(); toast("Receta creada: " + n);
+}
+let armed=false;
+function disarm(){ armed=false; const b=$("#eliminar"); b.classList.remove("armed"); b.textContent="Eliminar"; }
+function deleteRecipe(){
+  if (!armed){ armed=true; const b=$("#eliminar"); b.classList.add("armed"); b.textContent="Tocá de nuevo para eliminar"; setTimeout(disarm, 4000); return; }
+  const m = mine.find(x=>x.id===current.id);
+  if (m){ m.deleted=true; m.updatedAt=Date.now(); m.data=null; }
+  storeMine();
+  current = {kind:"none", id:""};
+  toast("Eliminada");
+  rerenderAll();
+}
+
+/* ---------- Guardado: cuenta (db) + copia local ---------- */
+let dbRef = null, writing = false, pendingWrite = false;
+function setSync(kind, text){ const el=$("#sync"); el.className="sync "+kind; el.querySelector("span").textContent=text; }
+function storeMine(){ lsSet("masas.recetas", mine); if (dbRef) queueWrite(); }
+async function queueWrite(){
+  if (writing){ pendingWrite=true; return; }
+  writing = true;
+  try {
+    do { pendingWrite=false; await dbRef.set({items: mine, updatedAt: Date.now()}); } while(pendingWrite);
+    setSync("ok","Recetas guardadas en tu cuenta");
+  } catch(e){ setSync("local","No pude guardar en tu cuenta; quedan en este dispositivo"); }
+  writing = false;
+}
+function merge(a, b){
+  const map = new Map();
+  [...a, ...b].forEach(x=>{ if(!x||!x.id) return; const y=map.get(x.id); if(!y || (x.updatedAt||0)>(y.updatedAt||0)) map.set(x.id, x); });
+  return [...map.values()];
+}
+const sameItems = (a,b) => JSON.stringify([...a].sort((x,y)=>x.id<y.id?-1:1)) === JSON.stringify([...b].sort((x,y)=>x.id<y.id?-1:1));
+async function initSync(){
+  if (!window.claude || !window.claude.use){ setSync("local","Recetas guardadas en este dispositivo"); return; }
+  let db=null, user=null;
+  try { [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]); } catch(e){}
+  if (!db || !user){ setSync("local","Recetas guardadas en este dispositivo"); return; }
+  let id; try { id = await user.id(); } catch(e){}
+  if (!id){ setSync("local","Recetas guardadas en este dispositivo"); return; }
+  dbRef = db.doc(`data/users/${id}/recetas`);
+  setSync("","Sincronizando…");
+  const timer = setTimeout(()=>setSync("local","Sin conexión con tu cuenta por ahora; uso la copia de este dispositivo"), 10000);
+  dbRef.onSnapshot(snap=>{
+    if (snap.metadata.fromCache && !snap.exists) return;
+    if (!snap.metadata.fromCache) clearTimeout(timer);
+    const remote = (snap.exists && Array.isArray(snap.data().items)) ? snap.data().items : [];
+    const merged = merge(mine, remote);
+    const changedLocal = !sameItems(merged, mine);
+    mine = merged; lsSet("masas.recetas", mine);
+    if (changedLocal){ renderBar(); }
+    if (!snap.metadata.fromCache){
+      if (!sameItems(merged, remote)) queueWrite();
+      else setSync("ok","Recetas guardadas en tu cuenta");
+    }
+  }, err=>{ clearTimeout(timer); setSync("local","No pude conectar con tu cuenta; las recetas quedan en este dispositivo"); });
+}
+
+/* ---------- Eventos ---------- */
+document.addEventListener("input", e=>{
+  const el = e.target;
+  if (el.id==="inicio"){ startTime = el.value; renderOut(); return; }
+  const k = el.dataset && el.dataset.k; if (!k) return;
+  setPath(state, k, el.dataset.text ? el.value : (el.value==="" ? "" : num(el.value)));
+  if (k.startsWith("agua.")) { renderAgua(); persistLast(); return; }
+  if (state.levAuto && k.startsWith("etapas.") && state.prefermento==="ninguno" && state.leudado!=="masamadre"){
+    const hint = document.querySelector("#form .check + .hint");
+    if (hint){ const fr=yeastFreshPct(state.etapas), c=LEV[state.leudado].c;
+      hint.innerHTML = `Estimado: <b>${fmtP(fr*c)}</b> de ${LEV[state.leudado].n.toLowerCase()}${state.leudado!=="fresca"?` (${fmtP(fr)} en fresca)`:""}. Es un punto de partida: la harina, la sal y tu heladera cambian el resultado.`; }
+  }
+  renderOut(); persistLast();
+});
+document.addEventListener("change", e=>{
+  const el = e.target;
+  if (el.id==="receta"){
+    const [kind, id] = el.value.split(":");
+    if (kind==="base"){ const p=PRESETS.find(x=>x.id===id); if(p){ state=clone(p); current={kind,id}; } }
+    else if (kind==="mine"){ const m=mine.find(x=>x.id===id); if(m&&m.data){ state=Object.assign(clone(PRESETS[0]), clone(m.data), {nombre:m.nombre}); current={kind,id}; } }
+    rerenderAll(); return;
+  }
+  if (el.dataset && el.dataset.flour!==undefined){
+    const i=+el.dataset.flour;
+    if (el.value==="__otra"){ state.harinas[i].nombre=""; } else state.harinas[i].nombre=el.value;
+    renderForm(); renderOut(); persistLast();
+    if (el.value==="__otra"){ const t=document.getElementById("h-n-"+i); if(t) t.focus(); }
+    return;
+  }
+  if (el.id==="levAuto"){
+    if (!el.checked){ const fr=yeastFreshPct(state.etapas); state.levManual = Math.round(fr*LEV[state.leudado].c*1000)/1000; }
+    state.levAuto = el.checked; renderForm(); renderOut(); persistLast();
+  }
+});
+document.addEventListener("keydown", e=>{ if (e.target.id==="nombre" && e.key==="Enter"){ e.preventDefault(); saveRecipe(); } });
+document.addEventListener("toggle", e=>{ if (e.target.id==="dAgua") lsSet("masas.aguaOpen", e.target.open); }, true);
+document.addEventListener("click", e=>{
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.seg){
+    const k=b.dataset.seg, v=b.dataset.v, prev=getPath(state,k);
+    if (prev===v) return;
+    setPath(state, k, v);
+    if (k==="prefermento" && v!=="ninguno"){ state.pf = clone(PF_PRESET[v]); state.levManual = 0; state.levAuto=false; }
+    if (k==="prefermento" && v==="ninguno"){ state.levAuto = true; }
+    if (k==="modo"){ const r=calc(Object.assign(clone(state),{modo:prev})); if (v==="harina") state.harinaTotal=Math.round(r.F); }
+    renderForm(); renderOut(); persistLast(); return;
+  }
+  if (b.dataset.int!==undefined){ setIntegral(+b.dataset.int); renderForm(); renderOut(); persistLast(); return; }
+  if (b.dataset.cold){ const i=coldIdx(); if(i>=0){ state.etapas[i].horas=+b.dataset.cold; renderForm(); renderOut(); persistLast(); } return; }
+  if (b.id==="addHarina"){ state.harinas.push({nombre:"Harina de fuerza (súper)", pct:0}); renderForm(); renderOut(); persistLast(); return; }
+  if (b.dataset.delHarina){ state.harinas.splice(+b.dataset.delHarina,1); renderForm(); renderOut(); persistLast(); return; }
+  if (b.id==="addEtapa"){ state.etapas.push({nombre:"Etapa", horas:1, temp:22}); renderForm(); renderOut(); persistLast(); return; }
+  if (b.dataset.delEtapa){ state.etapas.splice(+b.dataset.delEtapa,1); renderForm(); renderOut(); persistLast(); return; }
+  if (b.id==="nueva"){ togglePanel($("#nuevaPanel").hidden); return; }
+  if (b.id==="cancelar"){ togglePanel(false); return; }
+  if (b.id==="guardar"){ saveRecipe(); return; }
+  if (b.id==="eliminar"){ deleteRecipe(); return; }
+  if (b.id==="copiar"){
+    const txt = recipeText(), msg=$("#copyMsg");
+    const ok=()=>{ msg.textContent="Copiada"; setTimeout(()=>msg.textContent="",2000); };
+    try { navigator.clipboard.writeText(txt).then(ok, ()=>fallbackCopy(txt, ok)); } catch(err){ fallbackCopy(txt, ok); }
+  }
+});
+function fallbackCopy(txt, ok){
+  const ta=document.createElement("textarea"); ta.value=txt; ta.style.position="fixed"; ta.style.opacity="0";
+  document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); ok(); }catch(e){} ta.remove();
+}
+
+rerenderAll();
+initSync();
+})();
+</script>
+
+</body>
+</html>
